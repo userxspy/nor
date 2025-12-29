@@ -159,3 +159,41 @@ async def stats(_, message):
 # ─────────────────────────────────────
 # DELETE FILES
 # ─
+from hydrogram.types import InlineKeyboardButton
+from utils import get_settings, get_readable_time
+from info import DELETE_TIME
+
+async def get_grp_stg(group_id):
+    """
+    Return inline buttons for group settings panel
+    (Used by pm_filter.py)
+    """
+    settings = await get_settings(group_id)
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "✏️ Edit File Caption",
+                callback_data=f"caption_setgs#{group_id}"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"🗑 Auto Delete {'✅' if settings.get('auto_delete') else '❌'}",
+                callback_data=f"bool_setgs#auto_delete#{settings.get('auto_delete')}#{group_id}"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"👋 Welcome {'✅' if settings.get('welcome') else '❌'}",
+                callback_data=f"bool_setgs#welcome#{settings.get('welcome')}#{group_id}"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"⏱ Delete Time: {get_readable_time(DELETE_TIME)}",
+                callback_data="noop"
+            )
+        ]
+    ]
+    return buttons
