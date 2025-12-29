@@ -13,7 +13,7 @@ from info import (
 )
 
 # ─────────────────────────────────────────────
-# 🔌 SINGLE DATABASE CONNECTION (FINAL)
+# 🔌 SINGLE DATABASE CONNECTION
 # ─────────────────────────────────────────────
 client = MongoClient(
     DATABASE_URL,
@@ -29,7 +29,7 @@ _db = client[DATABASE_NAME]
 # ─────────────────────────────────────────────
 class Database:
 
-    # Minimal & required group settings only
+    # Default group settings
     default_setgs = {
         "file_secure": PROTECT_CONTENT,
         "spell_check": SPELL_CHECK,
@@ -197,6 +197,14 @@ class Database:
     def get_bot_sttgs(self):
         return self.settings.find_one({"id": BOT_ID}) or {}
 
+    # ───────── DB SIZE (FIX FOR STATS) ─────────
+    async def get_data_db_size(self):
+        """
+        Returns total MongoDB database size
+        Used in /stats
+        """
+        return (_db.command("dbstats"))["dataSize"]
+
     # ───────── STARTUP SUPPORT ─────────
     async def get_banned(self):
         """
@@ -205,17 +213,11 @@ class Database:
         banned_users = []
         banned_chats = []
 
-        try:
-            for u in self.users.find({"ban_status.is_banned": True}):
-                banned_users.append(u["id"])
-        except Exception:
-            pass
+        for u in self.users.find({"ban_status.is_banned": True}):
+            banned_users.append(u["id"])
 
-        try:
-            for g in self.groups.find({"chat_status.is_disabled": True}):
-                banned_chats.append(g["id"])
-        except Exception:
-            pass
+        for g in self.groups.find({"chat_status.is_disabled": True}):
+            banned_chats.append(g["id"])
 
         return banned_users, banned_chats
 
