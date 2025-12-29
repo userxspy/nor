@@ -98,7 +98,7 @@ if not DATABASE_URL:
 TIME_ZONE = environ.get("TIME_ZONE", "Asia/Kolkata")
 DELETE_TIME = int(environ.get("DELETE_TIME", 3600))
 CACHE_TIME = int(environ.get("CACHE_TIME", 300))
-MAX_BTN = int(environ.get("MAX_BTN", 8))
+MAX_BTN = int(environ.get("MAX_BTN", 12))
 
 LANGUAGES = environ.get(
     "LANGUAGES", "hindi english"
