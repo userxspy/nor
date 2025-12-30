@@ -12,6 +12,8 @@ from info import (
     ADMINS,
     DELETE_TIME,
     MAX_BTN,
+    IS_PREMIUM,
+    PICS
 )
 
 from utils import (
@@ -21,24 +23,37 @@ from utils import (
     get_readable_time,
     temp,
     get_settings,
+    save_group_settings,
+    get_premium_button
 )
 
 from database.users_chats_db import db
 from database.ia_filterdb import get_search_results
 
+import random
+
 BUTTONS = {}
 
 # ─────────────────────────────────────────────
-# 🔍 PRIVATE SEARCH (ADMIN + PREMIUM)
+# 🔍 PRIVATE SEARCH (PREMIUM REQUIRED)
 # ─────────────────────────────────────────────
 @Client.on_message(filters.private & filters.text & filters.incoming)
 async def pm_search(client, message):
     if message.text.startswith("/"):
         return
 
-    if not await is_premium(message.from_user.id, client) and message.from_user.id not in ADMINS:
-        return await message.reply_text(
-            "❌ This bot is only for Premium users and Admins!"
+    # ✅ Premium check (synced with Premium.py)
+    if IS_PREMIUM and not await is_premium(message.from_user.id, client):
+        return await message.reply_photo(
+            random.choice(PICS),
+            caption="🔒 <b>Premium Required</b>\n\n"
+                    "Search feature is only available for Premium users!\n\n"
+                    "Use /plan to activate premium subscription.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("💎 Buy Premium", callback_data="activate_plan"),
+                InlineKeyboardButton("📊 My Plan", callback_data="myplan")
+            ]]),
+            parse_mode=enums.ParseMode.HTML
         )
 
     # Direct ultra-fast search
@@ -46,7 +61,7 @@ async def pm_search(client, message):
 
 
 # ─────────────────────────────────────────────
-# 🔍 GROUP SEARCH
+# 🔍 GROUP SEARCH (WITH ON/OFF CONTROL)
 # ─────────────────────────────────────────────
 @Client.on_message(filters.group & filters.text & filters.incoming)
 async def group_search(client, message):
@@ -59,7 +74,16 @@ async def group_search(client, message):
     if message.text.startswith("/"):
         return
 
-    if not await is_premium(user_id, client) and user_id not in ADMINS:
+    # ✅ Check if search is enabled in this group
+    settings = await get_settings(chat_id)
+    search_enabled = settings.get("search_enabled", True)  # Default: ON
+    
+    # If search is OFF, silently ignore all searches (no reply to anyone)
+    if not search_enabled:
+        return
+
+    # ✅ Premium check (synced with Premium.py)
+    if IS_PREMIUM and not await is_premium(user_id, client):
         return
 
     # admin mention handler
@@ -90,6 +114,69 @@ async def group_search(client, message):
 
 
 # ─────────────────────────────────────────────
+# ⚙️ ADMIN COMMANDS - SEARCH ON/OFF
+# ─────────────────────────────────────────────
+@Client.on_message(filters.command("search") & filters.group)
+async def search_toggle(client, message):
+    """
+    Toggle group search on/off
+    Usage: /search on | /search off
+    Admin only command
+    """
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    # Check if user is admin
+    if not await is_check_admin(client, chat_id, user_id):
+        return await message.reply(
+            "❌ <b>Admin Only!</b>\n\n"
+            "Only group admins can use this command.",
+            parse_mode=enums.ParseMode.HTML
+        )
+    
+    # Get command argument
+    if len(message.command) < 2:
+        settings = await get_settings(chat_id)
+        current_status = "✅ ON" if settings.get("search_enabled", True) else "❌ OFF"
+        
+        return await message.reply(
+            f"🔍 <b>Group Search Settings</b>\n\n"
+            f"Current Status: {current_status}\n\n"
+            f"<b>Usage:</b>\n"
+            f"• <code>/search on</code> - Enable search\n"
+            f"• <code>/search off</code> - Disable search\n\n"
+            f"<b>Note:</b> When OFF, nobody (including premium users) can search in this group.",
+            parse_mode=enums.ParseMode.HTML
+        )
+    
+    action = message.command[1].lower()
+    
+    if action == "on":
+        await save_group_settings(chat_id, "search_enabled", True)
+        await message.reply(
+            "✅ <b>Search Enabled!</b>\n\n"
+            "All premium users can now search in this group.",
+            parse_mode=enums.ParseMode.HTML
+        )
+    
+    elif action == "off":
+        await save_group_settings(chat_id, "search_enabled", False)
+        await message.reply(
+            "❌ <b>Search Disabled!</b>\n\n"
+            "Nobody can search in this group now.\n"
+            "Use <code>/search on</code> to re-enable.",
+            parse_mode=enums.ParseMode.HTML
+        )
+    
+    else:
+        await message.reply(
+            "❌ <b>Invalid Option!</b>\n\n"
+            "Use: <code>/search on</code> or <code>/search off</code>",
+            parse_mode=enums.ParseMode.HTML
+        )
+
+
+# ─────────────────────────────────────────────
 # 🔁 NAVIGATION (PREV/NEXT)
 # ─────────────────────────────────────────────
 @Client.on_callback_query(filters.regex(r"^nav_"))
@@ -103,6 +190,13 @@ async def navigate_page(bot, query):
 
     if req != query.from_user.id:
         return await query.answer("Not for you!", show_alert=True)
+
+    # ✅ Premium check for navigation
+    if IS_PREMIUM and not await is_premium(query.from_user.id, bot):
+        return await query.answer(
+            "❌ Premium subscription expired!\nUse /plan to renew.",
+            show_alert=True
+        )
 
     search = BUTTONS.get(key)
     if not search:
@@ -207,6 +301,13 @@ async def switch_collection(bot, query):
 
     if req != query.from_user.id:
         return await query.answer("Not for you!", show_alert=True)
+
+    # ✅ Premium check for collection switch
+    if IS_PREMIUM and not await is_premium(query.from_user.id, bot):
+        return await query.answer(
+            "❌ Premium subscription expired!\nUse /plan to renew.",
+            show_alert=True
+        )
 
     search = BUTTONS.get(key)
     if not search:
