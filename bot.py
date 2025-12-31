@@ -145,6 +145,14 @@ class Bot(Client):
         await super().stop()
         logger.info("Bot stopped. Bye 👋")
 
+    app = Client(
+    "DeleteFileBot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN,
+    skip_updates=True
+)
+
     # Custom iterator (indexing safe)
     async def iter_messages(
         self: Client,
