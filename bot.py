@@ -149,8 +149,7 @@ class Bot(Client):
     "DeleteFileBot",
     api_id=API_ID,
     api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
-    skip_updates=True
+    bot_token=BOT_TOKEN
 )
 
     # Custom iterator (indexing safe)
